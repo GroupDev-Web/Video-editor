@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Mark Animations - Fast Video Editor</title>
+    <style>
+        /* Basic styling for the editor */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #0077cc;
+        }
+
+        .editor-container {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #videoPlayer {
+            max-width: 100%;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+        }
+
+        .controls input {
+            margin: 5px;
+        }
+
+        #exportButton {
+            padding: 10px 20px;
+            font-size: 1rem;
+            background-color: #0077cc;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #exportButton:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+
+        /* Progress Bar */
+        #progressContainer {
+            width: 80%;
+            background-color: #ddd;
+            border-radius: 5px;
+            margin: 20px auto;
+            display: none;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 20px;
+            background-color: #4caf50;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Mark Animations - Fast Video Editor</h1>
+
+    <div class="editor-container">
+        <input type="file" id="videoUpload" accept="video/*" />
+        <video id="videoPlayer" controls></video>
+
+        <div class="controls">
+            <label for="startTime">Start Trim (seconds): </label>
+            <input type="number" id="startTime" value="0" min="0" step="0.1">
+            <br>
+            <label for="endTime">End Trim (seconds): </label>
+            <input type="number" id="endTime" value="0" min="0" step="0.1">
+            <br>
+            <button onclick="trimVideo()">Trim Video</button>
+        </div>
+
+        <button id="exportButton" onclick="exportVideo()" disabled>Export Edited Video</button>
+
+        <!-- Progress Bar -->
+        <div id="progressContainer">
+            <div id="progressBar"></div>
+        </div>
+    </div>
+
+    <!-- Include FFmpeg.js via CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
+
+    <script>
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ log: true });
+
+        const videoUpload = document.getElementById('videoUpload');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const startTimeInput = document.getElementById('startTime');
+        const endTimeInput = document.getElementById('endTime');
+        const exportButton = document.getElementById('exportButton');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+
+        let originalVideoFile;
+        let trimmedVideoURL;
+
+        videoUpload.addEventListener('change', function() {
+            const file = videoUpload.files[0];
+            if (file) {
+                // Clean up previous object URL
+                if (videoPlayer.src) {
+                    URL.revokeObjectURL(videoPlayer.src);
+                }
+
+                originalVideoFile = file;
+                const url = URL.createObjectURL(file);
+                videoPlayer.src = url;
+                videoPlayer.load();
+
+                // Enable export button after trimming
+                exportButton.disabled = true;
+
+                // Set start and end times based on video duration
+                videoPlayer.onloadedmetadata = function() {
+                    startTimeInput.value = 0;
+                    endTimeInput.value = videoPlayer.duration;
+                };
+            }
+        });
+
+        async function trimVideo() {
+            try {
+                if (!originalVideoFile) {
+                    alert('Please upload a video first.');
+                    return;
+                }
+
+                const startTime = parseFloat(startTimeInput.value);
+                const endTime = parseFloat(endTimeInput.value);
+
+                if (isNaN(startTime) || isNaN(endTime) || startTime < 0 || endTime <= startTime) {
+                    alert('Please enter valid start and end times.');
+                    return;
+                }
+
+                progressContainer.style.display = 'block';
+                progressBar.style.width = '0%';
+
+                if (!ffmpeg.isLoaded()) {
+                    await ffmpeg.load();
+                }
+
+                ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(originalVideoFile));
+
+                // Update progress bar during trimming
+                ffmpeg.setProgress(({ ratio }) => {
+                    progressBar.style.width = `${ratio * 100}%`;
+                });
+
+                await ffmpeg.run('-i', 'input.mp4', '-ss', `${startTime}`, '-to', `${endTime}`, '-c', 'copy', 'trimmed.mp4');
+
+                const data = ffmpeg.FS('readFile', 'trimmed.mp4');
+                const trimmedBlob = new Blob([data.buffer], { type: 'video/mp4' });
+                trimmedVideoURL = URL.createObjectURL(trimmedBlob);
+                videoPlayer.src = trimmedVideoURL;
+                videoPlayer.load();
+
+                exportButton.disabled = false;
+                progressBar.style.width = '100%';
+
+                // Clean up FFmpeg's file system
+                ffmpeg.FS('unlink', 'input.mp4');
+                ffmpeg.FS('unlink', 'trimmed.mp4');
+            } catch (error) {
+                alert('An error occurred while trimming the video: ' + error.message);
+            }
+        }
+
+        async function exportVideo() {
+            try {
+                if (!trimmedVideoURL) {
+                    alert('Please trim the video first.');
+                    return;
+                }
+
+                exportButton.disabled = true;
+                exportButton.textContent = 'Processing...';
+
+                progressBar.style.width = '0%'; // Reset progress bar
+                if (!ffmpeg.isLoaded()) {
+                    await ffmpeg.load();
+                }
+
+                const response = await fetch(trimmedVideoURL);
+                const trimmedBlob = await response.blob();
+                ffmpeg.FS('writeFile', 'trimmed.mp4', await fetchFile(trimmedBlob));
+
+                // Pre-rendered logo video (replace with actual URL)
+                const logoURL = 'https://yourdomain.com/path-to-your-optimized-logo.mp4';
+                const logoResponse = await fetch(logoURL);
+                const logoBlob = await logoResponse.blob();
+                ffmpeg.FS('writeFile', 'logo.mp4', await fetchFile(logoBlob));
+
+                // Concatenate the trimmed video and the logo
+                ffmpeg.FS('writeFile', 'filelist.txt', `file 'trimmed.mp4'\nfile 'logo.mp4'\n`);
+                
+                // Update progress during exporting
+                ffmpeg.setProgress(({ ratio }) => {
+                    progressBar.style.width = `${ratio * 100}%`;
+                });
+
+                await ffmpeg.run('-f', 'concat', '-safe', '0', '-i', 'filelist.txt', '-c', 'copy', 'output.mp4');
+
+                const outputData = ffmpeg.FS('readFile', 'output.mp4');
+                const outputBlob = new Blob([outputData.buffer], { type: 'video/mp4' });
+                const outputURL = URL.createObjectURL(outputBlob);
+
+                videoPlayer.src = outputURL;
+                videoPlayer.load();
+                videoPlayer.play();
+
+                const downloadLink = document.createElement('a');
+                downloadLink.href = outputURL;
+                downloadLink.download = 'edited_video.mp4';
+                downloadLink.textContent = 'Download Edited Video';
+                downloadLink.style.display = 'block';
+                downloadLink.style.marginTop = '20px';
+                document.querySelector('.editor-container').appendChild(downloadLink);
+
+                exportButton.disabled = false;
+                exportButton.textContent = 'Export Edited Video';
+
+                // Clean up FFmpeg's file system
+                ffmpeg.FS('unlink', 'trimmed.mp4');
+                ffmpeg.FS('unlink', 'logo.mp4');
+                ffmpeg.FS('unlink', 'filelist.txt');
+                ffmpeg.FS('unlink', 'output.mp4');
+
+                // Reset progress bar
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    progressBar.style.width = '0%';
+                }, 1000);
+            } catch (error) {
+                alert('An error occurred while exporting the video: ' + error.message);
+            }
+        }
+    </script>
+
+</body>
+</html>
