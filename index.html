@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width">
+    <title>Mark Animations - Fast Video Editor</title>
+    <style>
+        /* Basic styling for the editor */
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        h1 {
+            color: #0077cc;
+        }
+
+        .editor-container {
+            margin-top: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #videoContainer {
+            position: relative;
+            display: inline-block;
+            max-width: 100%;
+            margin-bottom: 20px;
+        }
+
+        #videoPlayer {
+            max-width: 100%;
+            transition: transform 0.3s, filter 0.3s;
+        }
+
+        #textOverlay, #imageOverlay {
+            position: absolute;
+            top: 10%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 24px;
+            text-shadow: 2px 2px 4px #000;
+            pointer-events: none;
+        }
+
+        #imageOverlay img {
+            max-width: 100px;
+            max-height: 100px;
+        }
+
+        input[type="file"] {
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            margin-bottom: 20px;
+            width: 80%;
+            max-width: 800px;
+            text-align: left;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        .controls h2 {
+            margin-bottom: 10px;
+            color: #005fa3;
+        }
+
+        .controls label {
+            display: block;
+            margin: 10px 0 5px;
+        }
+
+        .controls input,
+        .controls select,
+        .controls button {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 10px;
+            box-sizing: border-box;
+        }
+
+        #exportButton {
+            padding: 10px 20px;
+            font-size: 1rem;
+            background-color: #0077cc;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        #exportButton:disabled {
+            background-color: #aaa;
+            cursor: not-allowed;
+        }
+
+        /* Progress Bar */
+        #progressContainer {
+            width: 80%;
+            background-color: #ddd;
+            border-radius: 5px;
+            margin: 20px auto;
+            display: none;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 20px;
+            background-color: #4caf50;
+            border-radius: 5px;
+        }
+
+        /* Download Link */
+        #downloadLink {
+            display: none;
+            margin-top: 20px;
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+
+        /* Tooltip Styling */
+        .tooltip {
+            position: relative;
+            display: inline-block;
+            cursor: pointer;
+        }
+
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 160px;
+            background-color: #555;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 0;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%; /* Position above the element */
+            left: 50%;
+            margin-left: -80px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 600px) {
+            .controls {
+                width: 95%;
+            }
+
+            #textOverlay, #imageOverlay {
+                font-size: 18px;
+            }
+
+            #imageOverlay img {
+                max-width: 80px;
+                max-height: 80px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Mark Animations - Fast Video Editor</h1>
+
+    <div class="editor-container">
+        <input type="file" id="videoUpload" accept="video/*" />
+
+        <div id="videoContainer">
+            <video id="videoPlayer" controls></video>
+            <div id="textOverlay"></div>
+            <div id="imageOverlay"></div>
+        </div>
+
+        <!-- Controls Section -->
+        <div class="controls">
+
+            <!-- Video Trimming -->
+            <h2>Video Trimming</h2>
+            <label for="startTime">Start Trim (seconds):</label>
+            <input type="number" id="startTime" value="0" min="0" step="0.1">
+            <label for="endTime">End Trim (seconds):</label>
+            <input type="number" id="endTime" value="0" min="0" step="0.1">
+            <button onclick="trimVideo()">Trim Video</button>
+
+            <!-- Playback Controls -->
+            <h2>Playback Controls</h2>
+            <label for="playbackRate">Playback Speed:</label>
+            <select id="playbackRate" onchange="changePlaybackSpeed()">
+                <option value="0.25">0.25x</option>
+                <option value="0.5">0.5x</option>
+                <option value="0.75">0.75x</option>
+                <option value="1" selected>1x</option>
+                <option value="1.25">1.25x</option>
+                <option value="1.5">1.5x</option>
+                <option value="1.75">1.75x</option>
+                <option value="2">2x</option>
+            </select>
+
+            <!-- Video Filters -->
+            <h2>Video Filters</h2>
+            <label for="videoFilter">Apply Filter:</label>
+            <select id="videoFilter" onchange="applyFilter()">
+                <option value="none" selected>None</option>
+                <option value="grayscale(100%)">Grayscale</option>
+                <option value="sepia(100%)">Sepia</option>
+                <option value="invert(100%)">Invert</option>
+                <option value="blur(5px)">Blur</option>
+                <option value="brightness(150%)">Brightness</option>
+                <option value="contrast(150%)">Contrast</option>
+                <option value="hue-rotate(90deg)">Hue Rotate</option>
+                <option value="saturate(200%)">Saturate</option>
+            </select>
+
+            <!-- Text Overlay -->
+            <h2>Text Overlay</h2>
+            <label for="overlayText">Overlay Text:</label>
+            <input type="text" id="overlayText" placeholder="Enter text here">
+            <button onclick="addTextOverlay()">Add Text</button>
+
+            <!-- Image Overlay -->
+            <h2>Image Overlay</h2>
+            <label for="overlayImage">Overlay Image URL:</label>
+            <input type="text" id="overlayImage" placeholder="Enter image URL here">
+            <button onclick="addImageOverlay()">Add Image</button>
+
+            <!-- Video Transformation -->
+            <h2>Video Transformation</h2>
+            <label for="rotate">Rotate:</label>
+            <select id="rotate" onchange="rotateVideo()">
+                <option value="0deg" selected>0°</option>
+                <option value="90deg">90°</option>
+                <option value="180deg">180°</option>
+                <option value="270deg">270°</option>
+            </select>
+
+            <label for="flip">Flip:</label>
+            <select id="flip" onchange="flipVideo()">
+                <option value="none" selected>None</option>
+                <option value="horizontal">Horizontal</option>
+                <option value="vertical">Vertical</option>
+            </select>
+
+            <!-- Audio Controls -->
+            <h2>Audio Controls</h2>
+            <label for="muteToggle">Mute Video:</label>
+            <button onclick="toggleMute()">Mute/Unmute</button>
+
+            <label for="volumeControl">Adjust Volume:</label>
+            <input type="range" id="volumeControl" min="0" max="1" step="0.01" value="1" onchange="adjustVolume()">
+
+            <!-- Additional Effects -->
+            <h2>Additional Effects</h2>
+            <label class="tooltip">Fade In
+                <span class="tooltiptext">Smoothly increase opacity at the start.</span>
+            </label>
+            <button onclick="applyFadeIn()">Apply Fade In</button>
+
+            <label class="tooltip">Fade Out
+                <span class="tooltiptext">Smoothly decrease opacity at the end.</span>
+            </label>
+            <button onclick="applyFadeOut()">Apply Fade Out</button>
+
+            <!-- Undo/Redo -->
+            <h2>Undo/Redo</h2>
+            <button onclick="undo()">Undo</button>
+            <button onclick="redo()">Redo</button>
+
+            <!-- Save/Load Project -->
+            <h2>Save/Load Project</h2>
+            <button onclick="saveProject()">Save Project</button>
+            <input type="file" id="loadProject" accept=".json" onchange="loadProject(event)">
+        </div>
+
+        <button id="exportButton" onclick="exportVideo()" disabled>Export Edited Video</button>
+
+        <!-- Progress Bar -->
+        <div id="progressContainer">
+            <div id="progressBar"></div>
+        </div>
+
+        <!-- Download Link -->
+        <a id="downloadLink" href="" download="edited_video.webm">Download Edited Video</a>
+    </div>
+
+    <script>
+        // Video and Overlay Elements
+        const videoUpload = document.getElementById('videoUpload');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const startTimeInput = document.getElementById('startTime');
+        const endTimeInput = document.getElementById('endTime');
+        const exportButton = document.getElementById('exportButton');
+        const progressContainer = document.getElementById('progressContainer');
+        const progressBar = document.getElementById('progressBar');
+        const downloadLink = document.getElementById('downloadLink');
+        const textOverlay = document.getElementById('textOverlay');
+        const imageOverlay = document.getElementById('imageOverlay');
+        const loadProjectInput = document.getElementById('loadProject');
+
+        // History for Undo/Redo
+        let historyStack = [];
+        let historyIndex = -1;
+
+        // Current Transformations
+        let currentRotation = '0deg';
+        let currentFlip = 'none';
+        let currentFilter = 'none';
+        let currentVolume = 1;
+
+        // Load Video
+        videoUpload.addEventListener('change', function() {
+            const file = videoUpload.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                videoPlayer.src = url;
+                videoPlayer.load();
+                exportButton.disabled = true;
+
+                videoPlayer.onloadedmetadata = function() {
+                    startTimeInput.value = 0;
+                    endTimeInput.value = videoPlayer.duration.toFixed(1);
+                }
+
+                // Reset History
+                historyStack = [];
+                historyIndex = -1;
+            }
+        });
+
+        // Trim Video
+        function trimVideo() {
+            const start = parseFloat(startTimeInput.value);
+            const end = parseFloat(endTimeInput.value);
+
+            if (isNaN(start) || isNaN(end) || start < 0 || end <= start || end > videoPlayer.duration) {
+                alert('Please enter valid start and end times.');
+                return;
+            }
+
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%';
+
+            videoPlayer.currentTime = start;
+            videoPlayer.play();
+
+            let recorder;
+            let chunks = [];
+
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            canvas.width = videoPlayer.videoWidth;
+            canvas.height = videoPlayer.videoHeight;
+
+            const stream = canvas.captureStream();
+            recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+
+            recorder.ondataavailable = function(e) {
+                if (e.data.size > 0) {
+                    chunks.push(e.data);
+                }
+            };
+
+            recorder.onstop = function() {
+                const blob = new Blob(chunks, { type: 'video/webm' });
+                const trimmedURL = URL.createObjectURL(blob);
+                downloadLink.href = trimmedURL;
+                downloadLink.style.display = 'block';
+                exportButton.disabled = false;
+                progressContainer.style.display = 'none';
+                progressBar.style.width = '0%';
+
+                // Reset Video to Trimmed Segment
+                videoPlayer.src = trimmedURL;
+                videoPlayer.load();
+                videoPlayer.onloadedmetadata = function() {
+                    startTimeInput.value = 0;
+                    endTimeInput.value = videoPlayer.duration.toFixed(1);
+                }
+
+                // Save to History
+                saveState();
+            };
+
+            recorder.start();
+
+            function drawFrame() {
+                if (videoPlayer.currentTime >= end) {
+                    recorder.stop();
+                    return;
+                }
+
+                ctx.drawImage(videoPlayer, 0, 0, canvas.width, canvas.height);
+                progressBar.style.width = `${((videoPlayer.currentTime - start) / (end - start)) * 100}%`;
+                requestAnimationFrame(drawFrame);
+            }
+
+            videoPlayer.ontimeupdate = function() {
+                if (videoPlayer.currentTime >= end) {
+                    videoPlayer.pause();
+                    videoPlayer.ontimeupdate = null;
+                }
+            };
+
+            drawFrame();
+        }
+
+        // Export Video
+        function exportVideo() {
+            if (!downloadLink.href) {
+                alert('Please trim the video first.');
+                return;
+            }
+            downloadLink.click();
+        }
+
+        // Playback Speed
+        function changePlaybackSpeed() {
+            const rate = parseFloat(document.getElementById('playbackRate').value);
+            videoPlayer.playbackRate = rate;
+            saveState();
+        }
+
+        // Apply Filter
+        function applyFilter() {
+            const filter = document.getElementById('videoFilter').value;
+            videoPlayer.style.filter = filter;
+            currentFilter = filter;
+            saveState();
+        }
+
+        // Add Text Overlay
+        function addTextOverlay() {
+            const text = document.getElementById('overlayText').value;
+            textOverlay.textContent = text;
+            saveState();
+        }
+
+        // Add Image Overlay
+        function addImageOverlay() {
+            const imgUrl = document.getElementById('overlayImage').value;
+            if (imgUrl) {
+                imageOverlay.innerHTML = `<img src="${imgUrl}" alt="Overlay Image">`;
+                saveState();
+            } else {
+                alert('Please enter a valid image URL.');
+            }
+        }
+
+        // Rotate Video
+        function rotateVideo() {
+            const rotation = document.getElementById('rotate').value;
+            currentRotation = rotation;
+            updateTransform();
+            saveState();
+        }
+
+        // Flip Video
+        function flipVideo() {
+            const flip = document.getElementById('flip').value;
+            currentFlip = flip;
+            updateTransform();
+            saveState();
+        }
+
+        // Update Transformations
+        function updateTransform() {
+            let transform = `rotate(${currentRotation}) `;
+            if (currentFlip === 'horizontal') {
+                transform += 'scaleX(-1)';
+            } else if (currentFlip === 'vertical') {
+                transform += 'scaleY(-1)';
+            }
+            videoPlayer.style.transform = transform;
+        }
+
+        // Mute/Unmute
+        function toggleMute() {
+            videoPlayer.muted = !videoPlayer.muted;
+            saveState();
+        }
+
+        // Adjust Volume
+        function adjustVolume() {
+            const volume = parseFloat(document.getElementById('volumeControl').value);
+            videoPlayer.volume = volume;
+            currentVolume = volume;
+            saveState();
+        }
+
+        // Apply Fade In
+        function applyFadeIn() {
+            videoPlayer.style.transition = 'opacity 2s';
+            videoPlayer.style.opacity = '0';
+            setTimeout(() => {
+                videoPlayer.style.opacity = '1';
+            }, 100);
+            saveState();
+        }
+
+        // Apply Fade Out
+        function applyFadeOut() {
+            videoPlayer.style.transition = 'opacity 2s';
+            videoPlayer.style.opacity = '1';
+            setTimeout(() => {
+                videoPlayer.style.opacity = '0';
+            }, 100);
+            saveState();
+        }
+
+        // Undo Functionality
+        function undo() {
+            if (historyIndex > 0) {
+                historyIndex--;
+                loadState(historyStack[historyIndex]);
+            }
+        }
+
+        // Redo Functionality
+        function redo() {
+            if (historyIndex < historyStack.length - 1) {
+                historyIndex++;
+                loadState(historyStack[historyIndex]);
+            }
+        }
+
+        // Save Current State to History
+        function saveState() {
+            const state = {
+                rotation: currentRotation,
+                flip: currentFlip,
+                filter: currentFilter,
+                volume: currentVolume,
+                muted: videoPlayer.muted,
+                textOverlay: textOverlay.textContent,
+                imageOverlay: imageOverlay.innerHTML
+            };
+            historyStack = historyStack.slice(0, historyIndex + 1);
+            historyStack.push(state);
+            historyIndex++;
+        }
+
+        // Load State from History
+        function loadState(state) {
+            currentRotation = state.rotation;
+            currentFlip = state.flip;
+            currentFilter = state.filter;
+            currentVolume = state.volume;
+
+            videoPlayer.style.transform = `rotate(${currentRotation}) `;
+            if (currentFlip === 'horizontal') {
+                videoPlayer.style.transform += 'scaleX(-1)';
+            } else if (currentFlip === 'vertical') {
+                videoPlayer.style.transform += 'scaleY(-1)';
+            }
+
+            videoPlayer.style.filter = currentFilter;
+            videoPlayer.volume = currentVolume;
+            videoPlayer.muted = state.muted;
+
+            textOverlay.textContent = state.textOverlay;
+            imageOverlay.innerHTML = state.imageOverlay;
+        }
+
+        // Save Project
+        function saveProject() {
+            const project = {
+                rotation: currentRotation,
+                flip: currentFlip,
+                filter: currentFilter,
+                volume: currentVolume,
+                muted: videoPlayer.muted,
+                textOverlay: textOverlay.textContent,
+                imageOverlay: imageOverlay.innerHTML,
+                videoSrc: videoPlayer.src,
+                startTime: startTimeInput.value,
+                endTime: endTimeInput.value
+            };
+            const projectJSON = JSON.stringify(project);
+            const blob = new Blob([projectJSON], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'project.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        // Load Project
+        function loadProject(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const project = JSON.parse(e.target.result);
+                    videoPlayer.src = project.videoSrc;
+                    videoPlayer.load();
+                    videoPlayer.onloadedmetadata = function() {
+                        startTimeInput.value = project.startTime;
+                        endTimeInput.value = project.endTime;
+                    }
+
+                    currentRotation = project.rotation;
+                    currentFlip = project.flip;
+                    currentFilter = project.filter;
+                    currentVolume = project.volume;
+
+                    videoPlayer.style.transform = `rotate(${currentRotation}) `;
+                    if (currentFlip === 'horizontal') {
+                        videoPlayer.style.transform += 'scaleX(-1)';
+                    } else if (currentFlip === 'vertical') {
+                        videoPlayer.style.transform += 'scaleY(-1)';
+                    }
+
+                    videoPlayer.style.filter = currentFilter;
+                    videoPlayer.volume = currentVolume;
+                    videoPlayer.muted = project.muted;
+
+                    textOverlay.textContent = project.textOverlay;
+                    imageOverlay.innerHTML = project.imageOverlay;
+
+                    saveState();
+                };
+                reader.readAsText(file);
+            }
+        }
+    </script>
+
+</body>
+</html>
